@@ -1,0 +1,6 @@
+CREATE TABLE IF NOT EXISTS items ( 
+    id INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    title TEXT NOT NULL CHECK (length(trim(title)) > 0),
+    category TEXT NOT NULL DEFAULT 'General',
+    completed BOOLEAN NOT NULL DEFAULT FALSE
+);
