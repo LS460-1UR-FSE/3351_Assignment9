@@ -14,7 +14,7 @@ The database also contains a category column with a default of
 "General"; the current API does not use it.
 
 github: 
-https://github.com/LS460-1UR-FSE/3351_Assignment8
+https://github.com/LS460-1UR-FSE/3351_Assignment9
 
 ## Endpoints
 
