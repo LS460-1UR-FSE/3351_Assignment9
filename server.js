@@ -55,21 +55,37 @@ app.get('/api/items', async (req, res) => {
     }
 });
 
-//return task by id 
-app.get('/api/resources/:id', (req, res) => {
-    const id = parseInt(req.params.id); //cinvert id to integer
-    const resource = resources.find((resource) => resource.id === id);
 
-    if(!resource) { //if resource not found, return 404
-        return res.status(404).json({ error: 'Resource not found' }); 
+// GET /api/items/:id - retrieve one task from PostgreSQL
+// for assignment 9
+app.get('/api/items/:id', async (req, res) => {
+    const id = Number(req.params.id);
+
+    // Reject invalid IDs before querying the database.
+    if (!Number.isInteger(id) || id < 1 || id > 2147483647) {
+        return res.status(404).json({ error: 'Task not found.' });
     }
 
-    res.json(resource);
+    try {
+        const result = await pool.query(
+            'SELECT id, title, completed FROM items WHERE id = $1',
+            [id]
+        );
+
+        if (result.rows.length === 0) {
+            return res.status(404).json({ error: 'Task not found.' });
+        }
+
+        res.status(200).json(result.rows[0]);
+    } catch (error) {
+        console.error('Error retrieving task:', error.message);
+        res.status(500).json({ error: 'Failed to retrieve task.' });
+    }
 });
 
 // POST /api/items - save a new task in PostgreSQL
 // for assignment 9
-app.post('/api/items', async (req, res) => {S
+app.post('/api/items', async (req, res) => {
     const { title } = req.body || {};
 
     // Require a non-empty title.
@@ -80,7 +96,7 @@ app.post('/api/items', async (req, res) => {S
     }
 
     try {
-        const result = await pool.query(
+        const result = await pool.query( //sql query to insert new task into items table
             `INSERT INTO items (title, completed)
              VALUES ($1, $2)
              RETURNING id, title, completed`,
@@ -94,36 +110,58 @@ app.post('/api/items', async (req, res) => {S
     }
 });
 
-app.put('/api/resources/:id', (req, res) => { //replace task title and status 
+// PUT /api/items/:id - update a saved task
+app.put('/api/items/:id', async (req, res) => {
     const id = Number(req.params.id);
 
-    const resource = resources.find((resource) => resource.id === id);
-
-    if (!resource) {
-        return res.status(404).json({
-            error: 'Resource not found.'
-        });
+    if (!Number.isInteger(id) || id < 1 || id > 2147483647) {
+        return res.status(404).json({ error: 'Task not found.' });
     }
 
     const { title, completed } = req.body || {};
 
-    // Validate both fields before changing the task.
-    if (typeof title !== 'string' || title.trim() === '') {
+    if (title === undefined && completed === undefined) {
         return res.status(400).json({
-            error: 'A task title is required.'
+            error: 'Provide a title or completed status.'
         });
     }
 
-    if (typeof completed !== 'boolean') {
+    if (title !== undefined &&
+        (typeof title !== 'string' || title.trim() === '')) {
+        return res.status(400).json({
+            error: 'Title must be a non-empty string.'
+        });
+    }
+
+    if (completed !== undefined && typeof completed !== 'boolean') {
         return res.status(400).json({
             error: 'completed must be true or false.'
         });
     }
 
-    resource.title = title.trim();
-    resource.completed = completed;
+    try {
+        const result = await pool.query(
+            `UPDATE items
+             SET title = COALESCE($1, title),
+                 completed = COALESCE($2, completed)
+             WHERE id = $3
+             RETURNING id, title, completed`,
+            [
+                title === undefined ? null : title.trim(),
+                completed === undefined ? null : completed,
+                id
+            ]
+        );
 
-    res.status(200).json(resource);
+        if (result.rows.length === 0) {
+            return res.status(404).json({ error: 'Task not found.' });
+        }
+
+        res.status(200).json(result.rows[0]);
+    } catch (error) {
+        console.error('Error updating task:', error.message);
+        res.status(500).json({ error: 'Failed to update task.' });
+    }
 });
 
 app.delete('/api/resources/:id', (req, res) => { //delete task by id
