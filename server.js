@@ -1,4 +1,6 @@
 const express = require('express');
+const pool = require('./db'); // import the pool from db.js for assignment 9 
+
 const app = express();
 const PORT = 3000;
 
@@ -38,9 +40,19 @@ const resources = [
 
 let nextId = 4; // next id to assign to a new resource
 
-// GET /resources - get all resources
-app.get('/api/resources', (req, res) => {
-    res.json(resources);
+// GET /api/items - retrieve all tasks from PostgreSQL 
+// for assignment 9
+app.get('/api/items', async (req, res) => {
+    try {
+        const result = await pool.query(
+            'SELECT id, title, completed FROM items ORDER BY id'
+        );
+
+        res.status(200).json(result.rows);
+    } catch (error) {
+        console.error('Error retrieving tasks:', error.message);
+        res.status(500).json({ error: 'Failed to retrieve tasks.' });
+    }
 });
 
 //return task by id 
@@ -55,22 +67,31 @@ app.get('/api/resources/:id', (req, res) => {
     res.json(resource);
 });
 
-app.post('/api/resources', (req, res) => {
-    const { title } = req.body || {}; //get title from request body
+// POST /api/items - save a new task in PostgreSQL
+// for assignment 9
+app.post('/api/items', async (req, res) => {S
+    const { title } = req.body || {};
 
-    //require title to be a string and not empty
+    // Require a non-empty title.
     if (typeof title !== 'string' || title.trim() === '') {
-        return res.status(400).json({ error: 'Title is required and must be a non-empty string' });
+        return res.status(400).json({
+            error: 'Title is required and must be a non-empty string'
+        });
     }
 
-    const newResource = {
-        id: nextId++,
-        title: title.trim(),
-        completed: false,
-    };
+    try {
+        const result = await pool.query(
+            `INSERT INTO items (title, completed)
+             VALUES ($1, $2)
+             RETURNING id, title, completed`,
+            [title.trim(), false]
+        );
 
-    resources.push(newResource); //add new resource to resources array
-    res.status(201).json(newResource); //return new resource with 201 status code
+        res.status(201).json(result.rows[0]);
+    } catch (error) {
+        console.error('Error creating task:', error.message);
+        res.status(500).json({ error: 'Failed to create task.' });
+    }
 });
 
 app.put('/api/resources/:id', (req, res) => { //replace task title and status 
